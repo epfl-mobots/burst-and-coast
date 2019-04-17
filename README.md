@@ -13,19 +13,19 @@
    `git clone git@github.com:epfl-mobots/particle-simu.git`
    `cd particle-simu`
 
-- Create a folder `animals` (if you don't already have one) and clone this repository
+- Create a folder `exp` (if you don't already have one) and clone this repository
 
-   `mkdir animals`
-   `git@github.com:epfl-mobots/burst-and-coast.git animals/`
+   `mkdir exp`
+   `git clone git@github.com:epfl-mobots/burst-and-coast.git exp/burst-and-coast`
    
 - Configure the environment for the project:
   
-   `./waf configure --animal burst-and-coast`
+   `./waf configure --exp burst-and-coast`
 
 - Compile your project:
   
-   `./waf -j --animal burst-and-coast`
+   `./waf -j --exp burst-and-coast`
    
 - Run the example
 
-   `./build/animals/rummy_nose/rummy_sim`
+   `./build/exp/rummy_nose/rummy_sim`

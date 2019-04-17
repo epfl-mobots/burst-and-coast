@@ -2,6 +2,14 @@
 # encoding: utf-8
 
 
+def configure(conf):
+    pass
+
+
+def options(opt):
+    pass
+
+
 def build(bld):
     srcs = []
     nodes = bld.path.ant_glob('*.cpp')
