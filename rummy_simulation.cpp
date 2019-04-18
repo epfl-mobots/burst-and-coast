@@ -11,19 +11,27 @@ namespace simu {
         {
             reinit();
 
-            Eigen::VectorXd kick_len_ref(_rummy_fish_settings.reference_sample_size), peak_vel_ref(_rummy_fish_settings.reference_sample_size), tau_ref(_rummy_fish_settings.reference_sample_size);
+            Eigen::VectorXd kick_len_ref(_rummy_fish_settings.reference_sample_size);
+            Eigen::VectorXd peak_vel_ref(_rummy_fish_settings.reference_sample_size);
+            Eigen::VectorXd tau_ref(_rummy_fish_settings.reference_sample_size);
 
             RummyIndividual reference_fish;
             for (int i = 0; i < _rummy_fish_settings.reference_sample_size; ++i) {
                 reference_fish.stepper(std::make_shared<RummySimulation>(*this));
                 kick_len_ref(i) = reference_fish.kick_length();
                 peak_vel_ref(i) = reference_fish.peak_velocity();
-                tau_ref(i) = reference_fish.tau();
+                tau_ref(i) = reference_fish.kick_duration();
             }
 
-            std::cout << "ln: " << kick_len_ref.minCoeff() << " < " << kick_len_ref.sum() / _rummy_fish_settings.reference_sample_size << " < " << kick_len_ref.maxCoeff() << std::endl;
-            std::cout << "vn: " << peak_vel_ref.minCoeff() << " < " << peak_vel_ref.sum() / _rummy_fish_settings.reference_sample_size << " < " << peak_vel_ref.maxCoeff() << std::endl;
-            std::cout << "taun: " << tau_ref.minCoeff() << " < " << tau_ref.sum() / _rummy_fish_settings.reference_sample_size << " < " << tau_ref.maxCoeff() << std::endl;
+            std::cout << "ln: " << kick_len_ref.minCoeff()
+                      << " < " << kick_len_ref.sum() / _rummy_fish_settings.reference_sample_size
+                      << " < " << kick_len_ref.maxCoeff() << std::endl;
+            std::cout << "vn: " << peak_vel_ref.minCoeff()
+                      << " < " << peak_vel_ref.sum() / _rummy_fish_settings.reference_sample_size
+                      << " < " << peak_vel_ref.maxCoeff() << std::endl;
+            std::cout << "taun: " << tau_ref.minCoeff()
+                      << " < " << tau_ref.sum() / _rummy_fish_settings.reference_sample_size
+                      << " < " << tau_ref.maxCoeff() << std::endl;
             std::cout << std::endl;
         }
 
@@ -135,7 +143,6 @@ namespace simu {
 
         double RummySimulation::alpha() const { return _alpha; }
         double RummySimulation::tau0() const { return _tau0; }
-
         double RummySimulation::velocity_coef() const { return _velocity_coef; }
         double RummySimulation::length_coef() const { return _length_coef; }
         double RummySimulation::time_coef() const { return _time_coef; }

@@ -18,16 +18,22 @@ namespace simu {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
             if (_is_kicking) {
-                _time += _tau;
+                _time += _kick_duration;
                 _desired_position.x = _position.x + _kick_length * std::cos(_angular_direction);
                 _desired_position.y = _position.y + _kick_length * std::sin(_angular_direction);
+
+                _desired_speed.vx = (_desired_position.x - _position.x) / _kick_duration;
+                _desired_speed.vy = (_desired_position.y - _position.y) / _kick_duration;
             }
             else {
                 double time_diff = rsim->fish()[rsim->kicking_idx()]->time() - _time;
                 double beta = (1. - std::exp(-time_diff / rsim->tau0()))
-                    / (1. - std::exp(-_tau / rsim->tau0()));
+                    / (1. - std::exp(-_kick_duration / rsim->tau0()));
                 _desired_position.x = _position.x + _kick_length * beta * std::cos(_angular_direction);
                 _desired_position.y = _position.y + _kick_length * beta * std::sin(_angular_direction);
+
+                _desired_speed.vx = (_desired_position.x - _position.x) / rsim->fish()[rsim->kicking_idx()]->kick_duration();
+                _desired_speed.vy = (_desired_position.y - _position.y) / rsim->fish()[rsim->kicking_idx()]->kick_duration();
             }
         }
 
@@ -38,6 +44,7 @@ namespace simu {
 
             // kicker advancing to the new position
             _position = _desired_position;
+            _speed = _desired_speed;
 
             // computing the state for the focal individual
             // distances -> distances to neighbours
@@ -68,7 +75,7 @@ namespace simu {
             }
 
             // indices to highly influential individuals
-            std::vector<int> inf_idcs = sort_neighbours(distances, rsim->kicking_idx(), Order::DECREASING);
+            std::vector<int> inf_idcs = sort_neighbours(influence, rsim->kicking_idx(), Order::DECREASING);
 
             // in case the influence from neighbouring fish is insignificant,
             // then use the nearest neighbours
@@ -94,9 +101,7 @@ namespace simu {
 
         void RummyIndividual::move(const std::shared_ptr<Simulation> sim)
         {
-            auto rsim = std::static_pointer_cast<RummySimulation>(sim);
-            _speed.vx = (_desired_position.x - _position.x) / rsim->fish()[rsim->kicking_idx()]->tau();
-            _speed.vy = (_desired_position.y - _position.y) / rsim->fish()[rsim->kicking_idx()]->tau();
+            _speed = _desired_speed;
         }
 
         state_t RummyIndividual::compute_state(const std::vector<RummyIndividualPtr>& fish) const
@@ -125,7 +130,8 @@ namespace simu {
             return {distances, perception, thetas, phis};
         }
 
-        std::vector<int> RummyIndividual::sort_neighbours(Eigen::VectorXd values, const int kicker_idx, Order order) const
+        std::vector<int> RummyIndividual::sort_neighbours(
+            const Eigen::VectorXd& values, const int kicker_idx, Order order) const
         {
             std::vector<int> neigh_idcs;
             for (int i = 0; i < values.rows(); ++i) {
@@ -154,15 +160,14 @@ namespace simu {
             _kick_length = rsim->length_coef() * std::sqrt(2. / M_PI) * bb;
 
             bb = std::sqrt(-2. * std::log(tools::random_in_range(.0, 1.) + 1.0e-16));
-            _tau = rsim->time_coef() * std::sqrt(2. / M_PI) * bb;
+            _kick_duration = rsim->time_coef() * std::sqrt(2. / M_PI) * bb;
 
-            _kick_length = _peak_velocity * rsim->tau0() * (1. - std::exp(-_tau / rsim->tau0()));
+            _kick_length = _peak_velocity * rsim->tau0() * (1. - std::exp(-_kick_duration / rsim->tau0()));
         }
 
-        void RummyIndividual::free_will(const std::shared_ptr<Simulation> sim,
-            const_state_t state,
-            const std::tuple<double, double>& model_out,
-            const std::vector<int>& idcs)
+        void RummyIndividual::free_will(
+            const std::shared_ptr<Simulation> sim,
+            const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
             double r_w, theta_w;
@@ -173,10 +178,12 @@ namespace simu {
             double g = std::sqrt(-2. * std::log(tools::random_in_range(0., 1.) + 1.0e-16))
                 * std::sin(2. * M_PI * tools::random_in_range(0., 1.));
 
-            double q = 1. * rsim->alpha() * wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius()) / rsim->gamma_wall();
+            double q = 1. * rsim->alpha()
+                * wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius()) / rsim->gamma_wall();
 
             double dphi_rand = rsim->gamma_rand() * (1. - q) * g;
-            double dphi_wall = wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius()) * wall_angle_interaction(theta_w);
+            double dphi_wall = wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius())
+                * wall_angle_interaction(theta_w);
 
             double dphi_attraction = 0;
             double dphi_ali = 0;
@@ -203,7 +210,11 @@ namespace simu {
             return {rw, thetaW};
         }
 
-        double RummyIndividual::wall_distance_interaction(double gamma_wall, double wall_interaction_range, double ag_radius, double radius) const
+        double RummyIndividual::wall_distance_interaction(
+            double gamma_wall,
+            double wall_interaction_range,
+            double ag_radius,
+            double radius) const
         {
             double x = std::max(0., ag_radius);
             return gamma_wall * std::exp(-std::pow(x / wall_interaction_range, 2));
@@ -262,7 +273,7 @@ namespace simu {
             return difference;
         }
 
-        double RummyIndividual::time_kicker() const { return _time + _tau; }
+        double RummyIndividual::time_kicker() const { return _time + _kick_duration; }
 
         double RummyIndividual::time() const { return _time; }
         double& RummyIndividual::time() { return _time; }
@@ -276,8 +287,8 @@ namespace simu {
         double RummyIndividual::kick_length() const { return _kick_length; }
         double& RummyIndividual::kick_length() { return _kick_length; }
 
-        double& RummyIndividual::tau() { return _tau; }
-        double RummyIndividual::tau() const { return _tau; }
+        double& RummyIndividual::kick_duration() { return _kick_duration; }
+        double RummyIndividual::kick_duration() const { return _kick_duration; }
 
         bool& RummyIndividual::is_kicking() { return _is_kicking; }
         bool RummyIndividual::is_kicking() const { return _is_kicking; }

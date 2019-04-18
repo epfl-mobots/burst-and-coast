@@ -22,7 +22,6 @@ namespace simu {
 
             double alpha = 2. / 3.;
             double tau0 = 0.8f;
-
             double velocity_coef = 0.14f;
             double length_coef = 0.07f;
             double time_coef = 0.5f;
@@ -76,7 +75,6 @@ namespace simu {
 
             double _alpha;
             double _tau0;
-
             double _velocity_coef;
             double _length_coef;
             double _time_coef;

@@ -25,7 +25,7 @@ namespace simu {
 
                 *_log_file << fsim->iteration() << " " << fsim->kicking_idx() << " ";
                 for (const RummyIndividualPtr& f : fsim->fish())
-                    *_log_file << f->speed().vx << " " << f->speed().vy << " ";
+                    *_log_file << f->desired_speed().vx << " " << f->desired_speed().vy << " ";
                 *_log_file << std::endl;
             }
         };

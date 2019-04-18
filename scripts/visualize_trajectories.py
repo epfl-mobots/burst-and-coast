@@ -49,19 +49,20 @@ if __name__ == '__main__':
     center = (0.502824858757, 0.500324858757)
 
     if args.dark:
-        image_path = os.getcwd() + '/animals/rummy_nose/scripts/fish_dark.png'
+        image_path = os.getcwd() + '/exp/burst-and-coast/scripts/fish_dark.png'
     else:
-        image_path = os.getcwd() + '/animals/rummy_nose/scripts/fish.png'
+        image_path = os.getcwd() + '/exp/burst-and-coast/scripts/fish.png'
     image = Image.open(image_path)
-    image_path = os.getcwd() + '/animals/rummy_nose/scripts/excluded.png'
+    image_path = os.getcwd() + '/exp/burst-and-coast/scripts/excluded.png'
     excluded_image = Image.open(image_path)
-    image_path = os.getcwd() + '/animals/rummy_nose/scripts/excluded_t_1.png'
+    image_path = os.getcwd() + '/exp/burst-and-coast/scripts/excluded_t_1.png'
     excluded_image_t_1 = Image.open(image_path)
-    image_path = os.getcwd() + '/animals/rummy_nose/scripts/robot.png'
+    image_path = os.getcwd() + '/exp/burst-and-coast/scripts/robot.png'
     rimage = Image.open(image_path)
 
     traj = np.loadtxt(args.path + '/positions.dat')[:, 2:]
     vel = np.loadtxt(args.path + '/velocities.dat')[:, 2:]
+
     tsteps = traj.shape[0]
 
     rtraj = np.roll(traj, 1, axis=0)

@@ -39,7 +39,9 @@ namespace simu {
 
             void stepper(const std::shared_ptr<Simulation> sim);
             std::tuple<double, double> model_stepper(double radius) const;
-            void free_will(const std::shared_ptr<Simulation> sim, const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs);
+            void free_will(
+                const std::shared_ptr<Simulation> sim,
+                const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs);
 
             FishParams& fish_params();
             FishParams fish_params() const;
@@ -56,8 +58,8 @@ namespace simu {
             double& time();
             double angular_direction() const;
             double& angular_direction();
-            double tau() const;
-            double& tau();
+            double kick_duration() const;
+            double& kick_duration();
             double kick_length() const;
             double& kick_length();
             double peak_velocity() const;
@@ -67,7 +69,8 @@ namespace simu {
             bool is_kicking() const;
 
         protected:
-            double wall_distance_interaction(double gamma_wall, double wall_interaction_range, double ag_radius, double radius) const;
+            double wall_distance_interaction(
+                double gamma_wall, double wall_interaction_range, double ag_radius, double radius) const;
             double wall_angle_interaction(double theta) const;
 
             double wall_distance_attractor(double distance, double radius) const;
@@ -79,7 +82,8 @@ namespace simu {
             double alignment_angle_attractor(double phi) const;
 
             state_t compute_state(const std::vector<RummyIndividualPtr>& fish) const;
-            std::vector<int> sort_neighbours(Eigen::VectorXd values, const int kicker_idx, Order order = Order::INCREASING) const;
+            std::vector<int> sort_neighbours(
+                const Eigen::VectorXd& values, const int kicker_idx, Order order = Order::INCREASING) const;
 
             double angle_to_pipi(double difference) const;
 
@@ -92,8 +96,8 @@ namespace simu {
             double _angular_direction;
             double _peak_velocity;
             double _kick_length;
+            double _kick_duration;
             double _time;
-            double _tau;
         };
 
     } // namespace simulation
