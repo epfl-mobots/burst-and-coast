@@ -89,7 +89,9 @@ if __name__ == '__main__':
                     'Not supported for all individuals. Please specify an index')
     else:
         plt.plot(traj[:args.timesteps, args.ind*coef],
-                 traj[:args.timesteps, args.ind*coef + 1], linewidth=0., marker='.', markersize=0.5)
+                 traj[:args.timesteps, args.ind*coef + 1],
+                 linewidth=0., marker='.', markersize=0.5
+                 )
     ax.set_xlim([-0.27, 0.27])
     ax.set_ylim([-0.27, 0.27])
 

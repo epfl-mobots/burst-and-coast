@@ -10,13 +10,6 @@
 
 namespace simu {
     namespace simulation {
-        struct FishParams {
-
-            void print() const
-            {
-            }
-        };
-
         enum Order {
             DECREASING,
             INCREASING
@@ -30,7 +23,6 @@ namespace simu {
         class RummyIndividual : public Individual<double, double> {
         public:
             RummyIndividual();
-            RummyIndividual(const FishParams& params);
             virtual ~RummyIndividual();
 
             virtual void stimulate(const std::shared_ptr<Simulation> sim) override;
@@ -42,9 +34,6 @@ namespace simu {
             void free_will(
                 const std::shared_ptr<Simulation> sim,
                 const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs);
-
-            FishParams& fish_params();
-            FishParams fish_params() const;
 
             Speed<speed_type_t> desired_speed() const { return _desired_speed; }
             Speed<speed_type_t>& desired_speed() { return _desired_speed; }
@@ -87,7 +76,6 @@ namespace simu {
 
             double angle_to_pipi(double difference) const;
 
-            FishParams _fish_params;
             Position<position_type_t> _desired_position;
             Speed<speed_type_t> _desired_speed;
 

@@ -19,6 +19,7 @@ namespace simu {
 
             if (_is_kicking) {
                 _time += _kick_duration;
+
                 _desired_position.x = _position.x + _kick_length * std::cos(_angular_direction);
                 _desired_position.y = _position.y + _kick_length * std::sin(_angular_direction);
 
@@ -41,10 +42,6 @@ namespace simu {
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
             int num_fish = rsim->fish().size();
-
-            // kicker advancing to the new position
-            _position = _desired_position;
-            _speed = _desired_speed;
 
             // computing the state for the focal individual
             // distances -> distances to neighbours
@@ -101,6 +98,9 @@ namespace simu {
 
         void RummyIndividual::move(const std::shared_ptr<Simulation> sim)
         {
+            auto rsim = std::static_pointer_cast<RummySimulation>(sim);
+            if (_id == rsim->kicking_idx()) // the kicking fish gets an update
+                _position = _desired_position;
             _speed = _desired_speed;
         }
 

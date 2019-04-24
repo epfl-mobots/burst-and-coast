@@ -82,6 +82,9 @@ namespace simu {
                 _fish[i]->angular_direction() = i * 2. * M_PI / (_num_fish + 1);
                 _fish[i]->position().y = -0.1;
             }
+
+            // log the initial position
+            _update_stats(std::make_shared<RummySimulation>(*this));
         }
 
         void RummySimulation::spin_once()
@@ -110,10 +113,6 @@ namespace simu {
                 _fish[i]->stimulate(std::make_shared<RummySimulation>(*this));
             }
 
-            // update statistics
-            _update_stats(std::make_shared<RummySimulation>(*this));
-            _update_descriptors(std::make_shared<RummySimulation>(*this));
-
             // apply attractors/repulsors and update the fish intuitions
             // (for the kicker, the rest are in their gliding phase)
             _fish[_kicking_idx]->interact(std::make_shared<RummySimulation>(*this));
@@ -121,6 +120,10 @@ namespace simu {
             // update position and velocity information -- actual move step
             for (uint i = 0; i < _fish.size(); ++i)
                 _fish[i]->move(std::make_shared<RummySimulation>(*this));
+
+            // update statistics
+            _update_stats(std::make_shared<RummySimulation>(*this));
+            _update_descriptors(std::make_shared<RummySimulation>(*this));
 
             Simulation::spin_once();
         }
