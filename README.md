@@ -16,6 +16,7 @@
 - Create a folder `exp` (if you don't already have one) and clone this repository
 
    `mkdir exp`
+   
    `git clone git@github.com:epfl-mobots/burst-and-coast.git exp/burst-and-coast`
    
 - Configure the environment for the project:
