@@ -21,12 +21,12 @@ namespace simu {
 
                 _create_log_file(rsim, "kick_counter.dat");
 
-                for (size_t i = 0; i < rsim->fish().size(); ++i) {
-                    *_log_file << rsim->iteration() << " ";
-                    for (const RummyIndividualPtr& f : rsim->fish())
-                        *_log_file << f->is_kicking() << " ";
-                    *_log_file << std::endl;
-                }
+                // for (size_t i = 0; i < rsim->fish().size(); ++i) {
+                //     *_log_file << rsim->iteration() << " ";
+                //     for (const RummyIndividualPtr& f : rsim->fish())
+                //         *_log_file << f->is_kicking() << " ";
+                //     *_log_file << std::endl;
+                // }
             }
         };
 

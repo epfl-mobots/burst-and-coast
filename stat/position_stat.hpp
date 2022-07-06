@@ -23,9 +23,9 @@ namespace simu {
                 // if (fsim->iteration() == 0)
                 //     *_log_file << "#iteration fish1_position fish2_position ..." << std::endl;
 
-                *_log_file << fsim->iteration() << " " << fsim->kicking_idx() << " ";
+                *_log_file << fsim->iteration() << " " << fsim->iteration() * fsim->params().timestep << " ";
                 for (const RummyIndividualPtr& f : fsim->fish())
-                    *_log_file << f->desired_position().x << " " << f->desired_position().y << " ";
+                    *_log_file << f->traj_pose().x / fsim->params().radius << " " << f->traj_pose().y / fsim->params().radius << " ";
                 *_log_file << std::endl;
             }
         };

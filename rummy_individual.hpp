@@ -2,14 +2,57 @@
 #define RUMMY_INDIVIDUAL_HPP
 
 #include <simulation/individual.hpp>
+#include <types/movement/pose2d.hpp>
 
 #include <tools/random/random_generator.hpp>
 #include <tuple>
 
 #include <Eigen/Core>
 
+#include <chrono>
+#include <random>
+
 namespace simu {
     namespace simulation {
+
+        namespace defaults {
+            struct RummyIndividualParams {
+                float radius = 25.;
+
+                // interactions
+                int perceived_agents = 1;
+                float gamma_rand = 0.3;
+                float gamma_wall = 0.23;
+                float gamma_sym = 0.;
+                float gamma_asym = 0.05;
+                float wall_interaction_range = 6.;
+
+                float dw = 6.;
+                float dc = 1.;
+                float alpha_w = 0.;
+                float gamma_attraction = 0.3;
+                float gamma_alignment = 0.3;
+
+                bool iuturn = true;
+                float duturn = 6.;
+                float pjump = 0.;
+                float psi_c = 0.25;
+
+                // kicks
+                float vmean = 43.;
+                float vmin = 1.;
+                float vmem = 0.9;
+                float vmem12 = 0.5;
+                float vcut = 35.;
+                float taumean = 0.52;
+                float taumin = 0.2;
+                float tau0 = 0.8;
+
+                // simu
+                int itermax = 1000;
+            };
+        } // namespace defaults
+
         enum Order {
             DECREASING,
             INCREASING
@@ -22,70 +65,50 @@ namespace simu {
 
         class RummyIndividual : public Individual<double, double> {
         public:
-            RummyIndividual();
+            RummyIndividual(int id, defaults::RummyIndividualParams params = defaults::RummyIndividualParams());
             virtual ~RummyIndividual();
 
+            virtual void glide(const std::shared_ptr<Simulation> sim);
+            virtual void prepare_kick(const std::shared_ptr<Simulation> sim);
+            virtual void kick(const std::shared_ptr<Simulation> sim);
+
             virtual void stimulate(const std::shared_ptr<Simulation> sim) override;
-            virtual void interact(const std::shared_ptr<Simulation> sim);
             virtual void move(const std::shared_ptr<Simulation> sim) override;
 
-            void stepper(const std::shared_ptr<Simulation> sim);
-            std::tuple<double, double> model_stepper(double radius) const;
-            void free_will(
-                const std::shared_ptr<Simulation> sim,
-                const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs);
-
-            Speed<speed_type_t> desired_speed() const { return _desired_speed; }
-            Speed<speed_type_t>& desired_speed() { return _desired_speed; }
-
-            Position<position_type_t> desired_position() const { return _desired_position; }
-            Position<position_type_t>& desired_position() { return _desired_position; }
-
-            double time_kicker() const;
-
-            double time() const;
-            double& time();
-            double angular_direction() const;
-            double& angular_direction();
-            double kick_duration() const;
-            double& kick_duration();
-            double kick_length() const;
-            double& kick_length();
-            double peak_velocity() const;
-            double& peak_velocity();
-
-            bool& is_kicking();
-            bool is_kicking() const;
+            float kick_duration() const;
+            float t0() const;
+            float& t0();
+            float tau() const;
+            float& tau();
+            Pose2d<float> kick_pose() const;
+            float speed() const;
+            Pose2d<float> pose() const;
+            Pose2d<float>& pose();
+            Pose2d<float> traj_pose() const;
 
         protected:
-            double wall_distance_interaction(
-                double gamma_wall, double wall_interaction_range, double ag_radius, double radius) const;
-            double wall_angle_interaction(double theta) const;
-
-            double wall_distance_attractor(double distance, double radius) const;
-            double wall_perception_attractor(double perception) const;
-            double wall_angle_attractor(double phi) const;
-
-            double alignment_distance_attractor(double distance, double radius) const;
-            double alignment_perception_attractor(double perception) const;
-            double alignment_angle_attractor(double phi) const;
-
+            std::tuple<float, float> compute_interactions(const state_t& state, std::vector<int> neighs, const std::shared_ptr<Simulation> sim);
             state_t compute_state(const std::vector<RummyIndividualPtr>& fish) const;
             std::vector<int> sort_neighbours(
                 const Eigen::VectorXd& values, const int kicker_idx, Order order = Order::INCREASING) const;
 
             double angle_to_pipi(double difference) const;
 
+            defaults::RummyIndividualParams _params;
             Position<position_type_t> _desired_position;
             Speed<speed_type_t> _desired_speed;
 
-            bool _is_kicking;
+            uint64_t _num_jumps;
+            uint64_t _num_kicks;
+            uint64_t _num_uturn;
 
-            double _angular_direction;
-            double _peak_velocity;
-            double _kick_length;
-            double _kick_duration;
-            double _time;
+            float _t0;
+            float _tau;
+            Pose2d<float> _pose;
+            Pose2d<float> _traj_pose;
+            Pose2d<float> _kick_pose;
+            float _speed;
+            float _traj_speed;
         };
 
     } // namespace simulation

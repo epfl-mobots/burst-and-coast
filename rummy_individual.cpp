@@ -1,107 +1,263 @@
 #include "rummy_individual.hpp"
 #include "rummy_simulation.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <tools/random/random_generator.hpp>
 
 namespace simu {
     namespace simulation {
 
-        RummyIndividual::RummyIndividual()
-            : _is_kicking(false), _time(0)
+        float ran3()
         {
+            return tools::random_in_range(0., 1.);
+        }
+
+        RummyIndividual::RummyIndividual(int id, defaults::RummyIndividualParams params) : _params(params)
+        {
+            _id = id;
+
+            _t0 = 0;
+            _speed = _params.vmean;
+            float dtau = _params.taumean - _params.taumin;
+
+            float x, y, r, rn, phi;
+            do {
+                _tau = _params.taumin - dtau * 0.5 * log(ran3() * ran3());
+                r = _params.radius * std::pow(ran3(), 1. / 4.);
+                float theta = M_PI * (_id + 1) / 16. * ran3();
+                x = r * cos(theta);
+                y = r * sin(theta);
+                phi = angle_to_pipi(theta + M_PI_2);
+
+                float dli = _speed * _params.tau0 * (1. - std::exp(-_tau / _params.tau0));
+                float xn = x + dli * cos(phi);
+                float yn = y + dli * sin(phi);
+                rn = std::sqrt(xn * xn + yn * yn);
+            } while (rn > _params.radius);
+
+            _num_jumps = 0;
+            _num_kicks = 0;
+            _num_uturn = 0;
+
+            _pose.x = x;
+            _pose.y = y;
+            _pose.yaw = phi;
+            _traj_pose = _pose;
+            _speed = _params.vmean;
+            _traj_speed = _speed;
         }
 
         RummyIndividual::~RummyIndividual() {}
 
-        void RummyIndividual::stimulate(const std::shared_ptr<Simulation> sim)
+        void RummyIndividual::glide(const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
-            if (_is_kicking) {
-                _time += _kick_duration;
-
-                _desired_position.x = _position.x + _kick_length * std::cos(_angular_direction);
-                _desired_position.y = _position.y + _kick_length * std::sin(_angular_direction);
-
-                _desired_speed.vx = (_desired_position.x - _position.x) / _kick_duration;
-                _desired_speed.vy = (_desired_position.y - _position.y) / _kick_duration;
-            }
-            else {
-                double time_diff = rsim->fish()[rsim->kicking_idx()]->time() - _time;
-                double beta = (1. - std::exp(-time_diff / rsim->tau0()))
-                    / (1. - std::exp(-_kick_duration / rsim->tau0()));
-                _desired_position.x = _position.x + _kick_length * beta * std::cos(_angular_direction);
-                _desired_position.y = _position.y + _kick_length * beta * std::sin(_angular_direction);
-
-                _desired_speed.vx = (_desired_position.x - _position.x) / rsim->fish()[rsim->kicking_idx()]->kick_duration();
-                _desired_speed.vy = (_desired_position.y - _position.y) / rsim->fish()[rsim->kicking_idx()]->kick_duration();
-            }
+            int it0 = rsim->iteration() + 1;
+            float tt0 = it0 * rsim->sim_settings().timestep;
+            float dt = tt0 - _t0;
+            float expt = std::exp(-dt / _params.tau0);
+            float dl = _speed * _params.tau0 * (1. - expt);
+            _traj_pose.x = _pose.x + dl * cos(_pose.yaw);
+            _traj_pose.y = _pose.y + dl * sin(_pose.yaw);
+            _traj_pose.yaw = _pose.yaw;
+            _traj_speed = _speed * expt;
         }
 
-        void RummyIndividual::interact(const std::shared_ptr<Simulation> sim)
+        void RummyIndividual::prepare_kick(const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
-            int num_fish = rsim->fish().size();
 
-            // computing the state for the focal individual
-            // distances -> distances to neighbours
-            // perception -> angle of focal individual compared to neighbours
-            // thetas -> angles to center
-            // phis -> relative bearing difference
-            Eigen::VectorXd distances, perception, thetas, phis;
-            std::tie(distances, perception, thetas, phis) = compute_state(rsim->fish());
+            float dt = rsim->t_next_kick() - _t0;
+            float dl = _speed * _params.tau0 * (1. - std::exp(-dt / _params.tau0));
+            _kick_pose.x = _pose.x + dl * cos(_pose.yaw);
+            _kick_pose.y = _pose.y + dl * sin(_pose.yaw);
+            _kick_pose.yaw = _pose.yaw;
+        }
 
-            // indices to nearest neighbours
-            std::vector<int> nn_idcs = sort_neighbours(distances, rsim->kicking_idx(), Order::INCREASING);
+        void RummyIndividual::kick(const std::shared_ptr<Simulation> sim)
+        {
+            auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
-            // compute influence from the environment to the focal fish
-            Eigen::VectorXd influence = Eigen::VectorXd::Zero(num_fish);
-            for (int i = 0; i < num_fish; ++i) {
-                if (i == rsim->kicking_idx())
-                    continue;
+            ++_num_kicks;
 
-                double attraction = wall_distance_attractor(distances(i), rsim->radius())
-                    * wall_perception_attractor(perception(i))
-                    * wall_angle_attractor(phis(i));
+            float v0old = _speed;
+            float vold = _speed * std::exp(-_tau / _params.tau0);
+            _t0 = rsim->t_next_kick();
+            _pose.x = _kick_pose.x;
+            _pose.y = _kick_pose.y;
 
-                double alignment = alignment_distance_attractor(distances(i), rsim->radius())
-                    * alignment_perception_attractor(perception(i))
-                    * alignment_angle_attractor(phis(i));
+            auto state = compute_state(rsim->fish());
+            auto neighs = sort_neighbours(std::get<0>(state), _id, Order::INCREASING); // by distance
 
-                influence(i) = std::abs(attraction + alignment);
-            }
+            float dphi_int, fw;
+            std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
 
-            // indices to highly influential individuals
-            std::vector<int> inf_idcs = sort_neighbours(influence, rsim->kicking_idx(), Order::DECREASING);
+            /**
+             *
+             * Step the model, this is the actual "movement" of the fish
+             *
+             **/
 
-            // in case the influence from neighbouring fish is insignificant,
-            // then use the nearest neighbours
-            double inf_sum = std::accumulate(influence.data(), influence.data() + influence.size(), 0.);
-            std::vector<int> idcs = inf_idcs;
-            if (inf_sum < 1.0e-6)
-                idcs = nn_idcs;
-
-            // step using the model
-            double r_w, theta_w;
-            std::tie(r_w, theta_w) = model_stepper(rsim->radius());
-
-            double qx, qy;
+            int iter = 0;
+            float phi_new, r_new;
             do {
-                stepper(sim); // decide on the next kick length, duration, peak velocity
-                free_will(sim, {distances, perception, thetas, phis}, {r_w, theta_w}, idcs); // throw in some free will
+                do {
+                    auto closest_neigh = rsim->fish()[neighs[0]];
+                    float prob = ran3();
+                    if (prob < _params.vmem) {
+                        if (prob < _params.vmem * _params.vmem12) {
+                            _speed = closest_neigh->speed();
+                        }
+                        else {
+                            _speed = v0old;
+                        }
+                    }
+                    else {
+                        // if (vold > _params.vmean) {
+                        //     _speed = vold;
+                        // }
+                        // else {
+                        //     _speed = vold - (_params.vmean - vold) * log(ran3() * ran3()) / 2.;
+                        // }
+                        // _speed = -_params.vmean * log(ran3());
+                        _speed = _params.vmin + _params.vmean * (-log(ran3() * ran3() * ran3())) / 3.;
+                    }
+                } while (_speed > _params.vcut); // speed
 
-                // rejection test -- don't want to hit the wall
-                qx = _desired_position.x + (_kick_length + rsim->body_length()) * std::cos(_angular_direction);
-                qy = _desired_position.y + (_kick_length + rsim->body_length()) * std::sin(_angular_direction);
-            } while (std::sqrt(qx * qx + qy * qy) > rsim->radius());
+                float dtau = _params.taumean - _params.taumin;
+                _tau = _params.taumin - dtau * 0.5 * log(ran3() * ran3());
+
+                // cognitive noise
+                float gauss = std::sqrt(-2. * log(ran3())) * cos(2 * M_PI * ran3());
+                phi_new = _pose.yaw + dphi_int + _params.gamma_rand * gauss * (1. - _params.alpha_w * fw);
+                float dl = _speed * _params.tau0 * (1. - std::exp(-_tau / _params.tau0)) + _params.dc;
+                float x_new = _pose.x + dl * std::cos(phi_new);
+                float y_new = _pose.y + dl * std::sin(phi_new);
+                r_new = std::sqrt(x_new * x_new + y_new * y_new);
+
+                if (++iter > _params.itermax) {
+                    iter = 0;
+                    // float dphiplus = 1.5 * (-log(ran3()));
+                    float dphiplus = 0.1 * ran3();
+                    float prob = ran3();
+                    if (prob < 0.5) {
+                        _pose.yaw = angle_to_pipi(std::atan2(_kick_pose.y, _kick_pose.x) + M_PI_2 + dphiplus);
+                    }
+                    else {
+                        _pose.yaw = angle_to_pipi(std::atan2(_kick_pose.y, _kick_pose.x) - M_PI_2 - dphiplus);
+                    }
+                    std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
+                }
+
+            } while (r_new > _params.radius); // radius
+
+            auto j = rsim->fish()[neighs[0]]->id();
+            if (std::cos(std::get<1>(state)[j]) > 0.9999 && std::get<0>(state)[j] < 3.) {
+                _speed /= 2.;
+            }
+
+            _pose.yaw = angle_to_pipi(phi_new);
         }
 
-        void RummyIndividual::move(const std::shared_ptr<Simulation> sim)
+        void RummyIndividual::stimulate(const std::shared_ptr<Simulation> sim) {}
+        void RummyIndividual::move(const std::shared_ptr<Simulation> sim) {}
+
+        std::tuple<float, float> RummyIndividual::compute_interactions(const state_t& state, std::vector<int> neighs, const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
-            if (_id == rsim->kicking_idx()) // the kicking fish gets an update
-                _position = _desired_position;
-            _speed = _desired_speed;
+
+            /**
+             *
+             * Compute interactions, i.e., attraction/repulsion between the current individual and its neighbours.
+             *
+             **/
+
+            float theta = std::atan2(_kick_pose.y, _kick_pose.x);
+            float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
+
+            float dphi_fish = 0.;
+            float dphiw = 0.;
+            float fw;
+
+            for (int j : neighs) {
+                auto neigh = rsim->fish()[j];
+
+                float dij = std::get<0>(state)[j];
+                float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
+                float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
+                float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
+
+                if (
+                    neighs.size() == 1 && _params.iuturn
+                    && psi_ij < _params.psi_c
+                    && psi_ji < _params.psi_c
+                    && dij < _params.duturn) {
+
+                    ++_num_uturn;
+                    _pose.yaw = neigh->kick_pose().yaw;
+                }
+
+                if (
+                    neighs.size() == 1
+                    && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
+                    && dij < _params.duturn
+                    && dphi_ij < _params.psi_c
+                    && rw < 8.) {
+
+                    ++_num_jumps;
+                    float theta_w = angle_to_pipi(_pose.yaw - theta);
+                    if (theta_w > 0) {
+                        theta_w = M_PI_2 + M_PI * ran3();
+                    }
+                    else {
+                        theta_w = M_PI_2 - M_PI * ran3();
+                    }
+
+                    // TODO: again, this should be for the neigh, not the focal
+                    _pose.yaw = theta + theta_w;
+                    neigh->t0() = rsim->t_next_kick();
+                    neigh->pose() = _pose;
+                    neigh->tau() = 0.;
+                }
+
+                // wall interaction
+                float theta_w = angle_to_pipi(_pose.yaw - theta);
+                fw = std::exp(-std::pow(rw / _params.dw, 2));
+                float ow = std::sin(theta_w) * (1. + 0.7 * std::cos(2. * theta_w));
+                dphiw = _params.gamma_wall * fw * ow;
+
+                float dphiwsym = _params.gamma_sym * std::sin(2. * theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
+                float dphiwasym = _params.gamma_asym * std::cos(theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
+
+                dphiw += dphiwsym + dphiwasym;
+
+                // fish interaction
+                for (int j : neighs) {
+                    float dij = std::get<0>(state)[j];
+                    float psi_ij = std::get<1>(state)[j];
+                    float dphi_ij = std::get<3>(state)[j];
+
+                    float fatt = (dij - 6.) / 3. / (1. + std::pow(dij / 20., 2));
+                    // float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
+                    // float eatt = 1. - 0.48 * std::cos(dphi_ij) - 0.31 * std::cos(2. * dphi_ij);
+                    float oatt = std::sin(psi_ij) * (1. + std::cos(psi_ij));
+                    float eatt = 1.;
+                    float dphiatt = _params.gamma_attraction * fatt * oatt * eatt;
+
+                    // float fali = (dij + 3. ) / 6. * std::exp(-std::pow(dij / 20., 2));
+                    float fali = std::exp(-std::pow(dij / 20., 2));
+                    float oali = std::sin(dphi_ij) * (1. + 0.3 * std::cos(2. * dphi_ij));
+                    float eali = 1. + 0.6 * std::cos(psi_ij) - 0.32 * std::cos(2. * psi_ij);
+                    float dphiali = _params.gamma_alignment * fali * oali * eali;
+
+                    dphi_fish += dphiatt + dphiali;
+                }
+            } // for each neighbour
+            float dphi_int = dphiw + dphi_fish;
+
+            return {dphi_int, fw};
         }
 
         state_t RummyIndividual::compute_state(const std::vector<RummyIndividualPtr>& fish) const
@@ -109,25 +265,27 @@ namespace simu {
             size_t num_fish = fish.size();
 
             Eigen::VectorXd distances(num_fish);
-            Eigen::VectorXd perception(num_fish);
-            Eigen::VectorXd thetas(num_fish);
-            Eigen::VectorXd phis(num_fish);
+            Eigen::VectorXd psis_ij(num_fish);
+            Eigen::VectorXd psis_ji(num_fish);
+            Eigen::VectorXd dphis(num_fish);
 
             for (uint i = 0; i < num_fish; ++i) {
                 distances(i) = std::sqrt(
-                    std::pow(_desired_position.x - fish[i]->desired_position().x, 2)
-                    + std::pow(_desired_position.y - fish[i]->desired_position().y, 2));
+                    std::pow(_kick_pose.x - fish[i]->kick_pose().x, 2)
+                    + std::pow(_kick_pose.y - fish[i]->kick_pose().y, 2));
 
-                thetas(i) = std::atan2(
-                    fish[i]->desired_position().y - _desired_position.y,
-                    fish[i]->desired_position().x - _desired_position.x);
+                psis_ij(i) = std::atan2(fish[i]->kick_pose().y - _kick_pose.y,
+                                 fish[i]->kick_pose().x - _kick_pose.x)
+                    - _kick_pose.yaw;
 
-                perception(i) = angle_to_pipi(thetas(i) - _angular_direction);
+                psis_ji(i) = std::atan2(_kick_pose.y - fish[i]->kick_pose().y,
+                                 _kick_pose.x - fish[i]->kick_pose().x)
+                    - fish[i]->kick_pose().yaw;
 
-                phis(i) = angle_to_pipi(fish[i]->angular_direction() - _angular_direction);
+                dphis(i) = fish[i]->kick_pose().yaw - _kick_pose.yaw;
             }
 
-            return {distances, perception, thetas, phis};
+            return {distances, psis_ij, psis_ji, dphis};
         }
 
         std::vector<int> RummyIndividual::sort_neighbours(
@@ -148,120 +306,6 @@ namespace simu {
             return neigh_idcs;
         }
 
-        void RummyIndividual::stepper(const std::shared_ptr<Simulation> sim)
-        {
-            auto rsim = std::static_pointer_cast<RummySimulation>(sim);
-            double bb;
-
-            bb = std::sqrt(-2. * std::log(tools::random_in_range(.0, 1.) + 1.0e-16));
-            _peak_velocity = rsim->velocity_coef() * std::sqrt(2. / M_PI) * bb;
-
-            bb = std::sqrt(-2. * std::log(tools::random_in_range(.0, 1.) + 1.0e-16));
-            _kick_length = rsim->length_coef() * std::sqrt(2. / M_PI) * bb;
-
-            bb = std::sqrt(-2. * std::log(tools::random_in_range(.0, 1.) + 1.0e-16));
-            _kick_duration = rsim->time_coef() * std::sqrt(2. / M_PI) * bb;
-
-            _kick_length = _peak_velocity * rsim->tau0() * (1. - std::exp(-_kick_duration / rsim->tau0()));
-        }
-
-        void RummyIndividual::free_will(
-            const std::shared_ptr<Simulation> sim,
-            const_state_t state, const std::tuple<double, double>& model_out, const std::vector<int>& idcs)
-        {
-            auto rsim = std::static_pointer_cast<RummySimulation>(sim);
-            double r_w, theta_w;
-            Eigen::VectorXd distances, perception, thetas, phis;
-            std::tie(r_w, theta_w) = model_out;
-            std::tie(distances, perception, thetas, phis) = state;
-
-            double g = std::sqrt(-2. * std::log(tools::random_in_range(0., 1.) + 1.0e-16))
-                * std::sin(2. * M_PI * tools::random_in_range(0., 1.));
-
-            double q = 1. * rsim->alpha()
-                * wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius()) / rsim->gamma_wall();
-
-            double dphi_rand = rsim->gamma_rand() * (1. - q) * g;
-            double dphi_wall = wall_distance_interaction(rsim->gamma_wall(), rsim->wall_interaction_range(), r_w, rsim->radius())
-                * wall_angle_interaction(theta_w);
-
-            double dphi_attraction = 0;
-            double dphi_ali = 0;
-            for (int j = 0; j < rsim->perceived_agents(); ++j) {
-                int fidx = idcs[j];
-                dphi_attraction += wall_distance_attractor(distances(fidx), rsim->radius())
-                    * wall_perception_attractor(perception(fidx))
-                    * wall_angle_attractor(phis(fidx));
-                dphi_ali += alignment_distance_attractor(distances(fidx), rsim->radius())
-                    * alignment_perception_attractor(perception(fidx))
-                    * alignment_angle_attractor(phis(fidx));
-            }
-
-            double dphi = dphi_rand + dphi_wall + dphi_attraction + dphi_ali;
-            _angular_direction = angle_to_pipi(_angular_direction + dphi);
-        }
-
-        std::tuple<double, double> RummyIndividual::model_stepper(double radius) const
-        {
-            double r = std::sqrt(std::pow(_desired_position.x, 2) + std::pow(_desired_position.y, 2));
-            double rw = radius - r;
-            double theta = std::atan2(_desired_position.y, _desired_position.x);
-            double thetaW = angle_to_pipi(_angular_direction - theta);
-            return {rw, thetaW};
-        }
-
-        double RummyIndividual::wall_distance_interaction(
-            double gamma_wall,
-            double wall_interaction_range,
-            double ag_radius,
-            double radius) const
-        {
-            double x = std::max(0., ag_radius);
-            return gamma_wall * std::exp(-std::pow(x / wall_interaction_range, 2));
-        }
-
-        double RummyIndividual::wall_angle_interaction(double theta) const
-        {
-            double a0 = 1.915651;
-            return a0 * std::sin(theta) * (1. + .7 * std::cos(2. * theta));
-        }
-
-        double RummyIndividual::wall_distance_attractor(double distance, double radius) const
-        {
-            double a0 = 4.;
-            double a1 = .03;
-            double a2 = .2;
-            return a0 * (distance - a1) / (1. + std::pow(distance / a2, 2));
-        }
-
-        double RummyIndividual::wall_perception_attractor(double perception) const
-        {
-            return 1.395 * std::sin(perception) * (1. - 0.33 * std::cos(perception));
-        }
-
-        double RummyIndividual::wall_angle_attractor(double phi) const
-        {
-            return 0.93263 * (1. - 0.48 * std::cos(phi) - 0.31 * std::cos(2. * phi));
-        }
-
-        double RummyIndividual::alignment_distance_attractor(double distance, double radius) const
-        {
-            double a0 = 1.5;
-            double a1 = .03;
-            double a2 = .2;
-            return a0 * (distance + a1) * std::exp(-std::pow(distance / a2, 2));
-        }
-
-        double RummyIndividual::alignment_perception_attractor(double perception) const
-        {
-            return 0.90123 * (1. + .6 * std::cos(perception) - .32 * std::cos(2. * perception));
-        }
-
-        double RummyIndividual::alignment_angle_attractor(double phi) const
-        {
-            return 1.6385 * std::sin(phi) * (1. + .3 * std::cos(2. * phi));
-        }
-
         double RummyIndividual::angle_to_pipi(double difference) const
         {
             do {
@@ -273,25 +317,55 @@ namespace simu {
             return difference;
         }
 
-        double RummyIndividual::time_kicker() const { return _time + _kick_duration; }
+        float RummyIndividual::kick_duration() const
+        {
+            return _tau;
+        }
 
-        double RummyIndividual::time() const { return _time; }
-        double& RummyIndividual::time() { return _time; }
+        float RummyIndividual::t0() const
+        {
+            return _t0;
+        }
 
-        double RummyIndividual::angular_direction() const { return _angular_direction; }
-        double& RummyIndividual::angular_direction() { return _angular_direction; }
+        float& RummyIndividual::t0()
+        {
+            return _t0;
+        }
 
-        double RummyIndividual::peak_velocity() const { return _peak_velocity; }
-        double& RummyIndividual::peak_velocity() { return _peak_velocity; }
+        float RummyIndividual::tau() const
+        {
+            return _tau;
+        }
 
-        double RummyIndividual::kick_length() const { return _kick_length; }
-        double& RummyIndividual::kick_length() { return _kick_length; }
+        float& RummyIndividual::tau()
+        {
+            return _tau;
+        }
 
-        double& RummyIndividual::kick_duration() { return _kick_duration; }
-        double RummyIndividual::kick_duration() const { return _kick_duration; }
+        Pose2d<float> RummyIndividual::kick_pose() const
+        {
+            return _kick_pose;
+        }
 
-        bool& RummyIndividual::is_kicking() { return _is_kicking; }
-        bool RummyIndividual::is_kicking() const { return _is_kicking; }
+        float RummyIndividual::speed() const
+        {
+            return _speed;
+        }
+
+        Pose2d<float> RummyIndividual::pose() const
+        {
+            return _pose;
+        }
+
+        Pose2d<float>& RummyIndividual::pose()
+        {
+            return _pose;
+        }
+
+        Pose2d<float> RummyIndividual::traj_pose() const
+        {
+            return _traj_pose;
+        }
 
     } // namespace simulation
 } // namespace simu

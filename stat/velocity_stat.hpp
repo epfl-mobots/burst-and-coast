@@ -23,10 +23,10 @@ namespace simu {
                 // if (fsim->iteration() == 0)
                 //     *_log_file << "#iteration fish1_position fish2_position ..." << std::endl;
 
-                *_log_file << fsim->iteration() << " " << fsim->kicking_idx() << " ";
-                for (const RummyIndividualPtr& f : fsim->fish())
-                    *_log_file << f->speed().vx << " " << f->speed().vy << " ";
-                *_log_file << std::endl;
+                // *_log_file << fsim->iteration() << " " << fsim->kicking_idx() << " ";
+                // for (const RummyIndividualPtr& f : fsim->fish())
+                //     *_log_file << f->speed().vx << " " << f->speed().vy << " ";
+                // *_log_file << std::endl;
             }
         };
 
