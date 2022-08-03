@@ -1,8 +1,9 @@
 #include "rummy_simulation.hpp"
 
-#include "stat/position_stat.hpp"
-#include "stat/velocity_stat.hpp"
-#include "stat/kick_counter.hpp"
+#include "stat/trajectory_stat.hpp"
+#include "stat/kick_stat.hpp"
+#include "stat/speed_stat.hpp"
+#include "stat/pose_stat.hpp"
 
 #include <iostream>
 
@@ -15,13 +16,15 @@ int main()
     using namespace simulation;
 
     RummySimuParams params;
-    params.sim_time = 500001;
+    params.sim_time = 500000;
+    // params.timestep = 1 / 30.;
+    // params.sim_time = 1500000;
     RummySimulation sim(params);
 
-    // sim.add_stat(std::make_shared<stat::PositionStat>())
-    //     .add_stat(std::make_shared<stat::VelocityStat>())
-    //     .add_stat(std::make_shared<stat::KickCounter>());
-    sim.add_stat(std::make_shared<stat::PositionStat>());
+    sim.add_stat(std::make_shared<stat::TrajectoryStat>())
+        .add_stat(std::make_shared<stat::KickStat>())
+        .add_stat(std::make_shared<stat::SpeedStat>())
+        .add_stat(std::make_shared<stat::PoseStat>());
 
     sim.spin();
 

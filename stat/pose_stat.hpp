@@ -1,5 +1,5 @@
-#ifndef POSITION_STAT_HPP
-#define POSITION_STAT_HPP
+#ifndef POSE_STAT_HPP
+#define POSE_STAT_HPP
 
 #include <rummy_simulation.hpp>
 #include <stat/stat_base.hpp>
@@ -8,7 +8,7 @@ namespace simu {
     namespace stat {
         using namespace simulation;
 
-        class PositionStat : public StatBase {
+        class PoseStat : public StatBase {
         public:
             void operator()(const SimulationPtr sim) override
             {
@@ -18,14 +18,15 @@ namespace simu {
                 if (!fsim->stats_enabled())
                     return;
 
-                _create_log_file(fsim, "positions.dat");
+                _create_log_file(fsim, "pose.dat");
 
-                // if (fsim->iteration() == 0)
-                //     *_log_file << "#iteration fish1_position fish2_position ..." << std::endl;
+                if (fsim->is_kicking()) {
+                    return;
+                }
 
-                *_log_file << fsim->iteration() << " " << fsim->iteration() * fsim->params().timestep << " ";
+                *_log_file << fsim->iteration() << " ";
                 for (const RummyIndividualPtr& f : fsim->fish())
-                    *_log_file << f->traj_pose().x / fsim->params().radius << " " << f->traj_pose().y / fsim->params().radius << " ";
+                    *_log_file << f->traj_pose().x << " " << f->traj_pose().y << " " << f->traj_pose().yaw << " ";
                 *_log_file << std::endl;
             }
         };

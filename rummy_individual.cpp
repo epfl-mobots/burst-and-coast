@@ -50,7 +50,7 @@ namespace simu {
 
         RummyIndividual::~RummyIndividual() {}
 
-        void RummyIndividual::glide(const std::shared_ptr<Simulation> sim)
+        void RummyIndividual::burst_and_coast(const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
@@ -88,8 +88,52 @@ namespace simu {
             _pose.x = _kick_pose.x;
             _pose.y = _kick_pose.y;
 
+            float theta = std::atan2(_kick_pose.y, _kick_pose.x);
+            float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
+
             auto state = compute_state(rsim->fish());
             auto neighs = sort_neighbours(std::get<0>(state), _id, Order::INCREASING); // by distance
+
+            for (int j : neighs) {
+                auto neigh = rsim->fish()[j];
+
+                float dij = std::get<0>(state)[j];
+                float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
+                float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
+                float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
+
+                if (
+                    neighs.size() == 1 && _params.iuturn
+                    && psi_ij < _params.psi_c
+                    && psi_ji < _params.psi_c
+                    && dij < _params.duturn) {
+
+                    ++_num_uturn;
+                    _pose.yaw = neigh->kick_pose().yaw;
+                }
+
+                if (
+                    neighs.size() == 1
+                    && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
+                    && dij < _params.duturn
+                    && dphi_ij < _params.psi_c
+                    && rw < 8.) {
+
+                    ++_num_jumps;
+                    float theta_w = angle_to_pipi(_pose.yaw - theta);
+                    if (theta_w > 0) {
+                        theta_w = M_PI_2 + M_PI * ran3();
+                    }
+                    else {
+                        theta_w = M_PI_2 - M_PI * ran3();
+                    }
+
+                    _pose.yaw = theta + theta_w;
+                    neigh->t0() = rsim->t_next_kick();
+                    neigh->pose() = _pose;
+                    neigh->tau() = 0.;
+                }
+            }
 
             float dphi_int, fw;
             std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
@@ -104,11 +148,11 @@ namespace simu {
             float phi_new, r_new;
             do {
                 do {
-                    auto closest_neigh = rsim->fish()[neighs[0]];
+                    auto most_inf_neigh = rsim->fish()[neighs[0]];
                     float prob = ran3();
                     if (prob < _params.vmem) {
                         if (prob < _params.vmem * _params.vmem12) {
-                            _speed = closest_neigh->speed();
+                            _speed = most_inf_neigh->speed();
                         }
                         else {
                             _speed = v0old;
@@ -181,6 +225,17 @@ namespace simu {
             float dphiw = 0.;
             float fw;
 
+            // wall interaction
+            float theta_w = angle_to_pipi(_pose.yaw - theta);
+            fw = std::exp(-std::pow(rw / _params.dw, 2));
+            float ow = std::sin(theta_w) * (1. + 0.7 * std::cos(2. * theta_w));
+            dphiw = _params.gamma_wall * fw * ow;
+
+            float dphiwsym = _params.gamma_sym * std::sin(2. * theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
+            float dphiwasym = _params.gamma_asym * std::cos(theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
+
+            dphiw += dphiwsym + dphiwasym;
+
             for (int j : neighs) {
                 auto neigh = rsim->fish()[j];
 
@@ -189,71 +244,20 @@ namespace simu {
                 float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
                 float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
 
-                if (
-                    neighs.size() == 1 && _params.iuturn
-                    && psi_ij < _params.psi_c
-                    && psi_ji < _params.psi_c
-                    && dij < _params.duturn) {
+                float fatt = (dij - 6.) / 3. / (1. + std::pow(dij / 20., 2));
+                // float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
+                // float eatt = 1. - 0.48 * std::cos(dphi_ij) - 0.31 * std::cos(2. * dphi_ij);
+                float oatt = std::sin(psi_ij) * (1. + std::cos(psi_ij));
+                float eatt = 1.;
+                float dphiatt = _params.gamma_attraction * fatt * oatt * eatt;
 
-                    ++_num_uturn;
-                    _pose.yaw = neigh->kick_pose().yaw;
-                }
+                // float fali = (dij + 3. ) / 6. * std::exp(-std::pow(dij / 20., 2));
+                float fali = std::exp(-std::pow(dij / 20., 2));
+                float oali = std::sin(dphi_ij) * (1. + 0.3 * std::cos(2. * dphi_ij));
+                float eali = 1. + 0.6 * std::cos(psi_ij) - 0.32 * std::cos(2. * psi_ij);
+                float dphiali = _params.gamma_alignment * fali * oali * eali;
 
-                if (
-                    neighs.size() == 1
-                    && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
-                    && dij < _params.duturn
-                    && dphi_ij < _params.psi_c
-                    && rw < 8.) {
-
-                    ++_num_jumps;
-                    float theta_w = angle_to_pipi(_pose.yaw - theta);
-                    if (theta_w > 0) {
-                        theta_w = M_PI_2 + M_PI * ran3();
-                    }
-                    else {
-                        theta_w = M_PI_2 - M_PI * ran3();
-                    }
-
-                    // TODO: again, this should be for the neigh, not the focal
-                    _pose.yaw = theta + theta_w;
-                    neigh->t0() = rsim->t_next_kick();
-                    neigh->pose() = _pose;
-                    neigh->tau() = 0.;
-                }
-
-                // wall interaction
-                float theta_w = angle_to_pipi(_pose.yaw - theta);
-                fw = std::exp(-std::pow(rw / _params.dw, 2));
-                float ow = std::sin(theta_w) * (1. + 0.7 * std::cos(2. * theta_w));
-                dphiw = _params.gamma_wall * fw * ow;
-
-                float dphiwsym = _params.gamma_sym * std::sin(2. * theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
-                float dphiwasym = _params.gamma_asym * std::cos(theta_w) * std::exp(-rw / _params.dw) * rw / _params.dw;
-
-                dphiw += dphiwsym + dphiwasym;
-
-                // fish interaction
-                for (int j : neighs) {
-                    float dij = std::get<0>(state)[j];
-                    float psi_ij = std::get<1>(state)[j];
-                    float dphi_ij = std::get<3>(state)[j];
-
-                    float fatt = (dij - 6.) / 3. / (1. + std::pow(dij / 20., 2));
-                    // float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
-                    // float eatt = 1. - 0.48 * std::cos(dphi_ij) - 0.31 * std::cos(2. * dphi_ij);
-                    float oatt = std::sin(psi_ij) * (1. + std::cos(psi_ij));
-                    float eatt = 1.;
-                    float dphiatt = _params.gamma_attraction * fatt * oatt * eatt;
-
-                    // float fali = (dij + 3. ) / 6. * std::exp(-std::pow(dij / 20., 2));
-                    float fali = std::exp(-std::pow(dij / 20., 2));
-                    float oali = std::sin(dphi_ij) * (1. + 0.3 * std::cos(2. * dphi_ij));
-                    float eali = 1. + 0.6 * std::cos(psi_ij) - 0.32 * std::cos(2. * psi_ij);
-                    float dphiali = _params.gamma_alignment * fali * oali * eali;
-
-                    dphi_fish += dphiatt + dphiali;
-                }
+                dphi_fish += dphiatt + dphiali;
             } // for each neighbour
             float dphi_int = dphiw + dphi_fish;
 
@@ -293,7 +297,7 @@ namespace simu {
         {
             std::vector<int> neigh_idcs;
             for (int i = 0; i < values.rows(); ++i) {
-                if (i == kicker_idx)
+                if (i == _id)
                     continue;
                 neigh_idcs.push_back(i);
             }
@@ -365,6 +369,16 @@ namespace simu {
         Pose2d<float> RummyIndividual::traj_pose() const
         {
             return _traj_pose;
+        }
+
+        float RummyIndividual::traj_speed() const
+        {
+            return _traj_speed;
+        }
+
+        defaults::RummyIndividualParams RummyIndividual::params() const
+        {
+            return _params;
         }
 
     } // namespace simulation

@@ -26,19 +26,19 @@ namespace simu {
 
             int next_kicker_idx() const;
             float t_next_kick() const;
+            bool is_kicking() const;
             defaults::RummySimuParams params() const;
 
             void reinit();
 
         protected:
-            void _init();
-
             defaults::RummySimuParams _params;
 
             std::vector<RummyIndividualPtr> _fish;
 
             int _next_kicker_idx;
             float _t_next_kick;
+            bool _is_kicking;
         };
 
         using FishSimulationPtr = std::shared_ptr<RummySimulation>;

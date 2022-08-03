@@ -24,7 +24,7 @@ namespace simu {
                 float gamma_rand = 0.3;
                 float gamma_wall = 0.23;
                 float gamma_sym = 0.;
-                float gamma_asym = 0.05;
+                float gamma_asym = 0.0;
                 float wall_interaction_range = 6.;
 
                 float dw = 6.;
@@ -44,7 +44,7 @@ namespace simu {
                 float vmem = 0.9;
                 float vmem12 = 0.5;
                 float vcut = 35.;
-                float taumean = 0.52;
+                float taumean = 0.525;
                 float taumin = 0.2;
                 float tau0 = 0.8;
 
@@ -68,7 +68,7 @@ namespace simu {
             RummyIndividual(int id, defaults::RummyIndividualParams params = defaults::RummyIndividualParams());
             virtual ~RummyIndividual();
 
-            virtual void glide(const std::shared_ptr<Simulation> sim);
+            virtual void burst_and_coast(const std::shared_ptr<Simulation> sim);
             virtual void prepare_kick(const std::shared_ptr<Simulation> sim);
             virtual void kick(const std::shared_ptr<Simulation> sim);
 
@@ -85,6 +85,8 @@ namespace simu {
             Pose2d<float> pose() const;
             Pose2d<float>& pose();
             Pose2d<float> traj_pose() const;
+            float traj_speed() const;
+            defaults::RummyIndividualParams params() const;
 
         protected:
             std::tuple<float, float> compute_interactions(const state_t& state, std::vector<int> neighs, const std::shared_ptr<Simulation> sim);

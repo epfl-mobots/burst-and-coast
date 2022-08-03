@@ -8,17 +8,14 @@ namespace simu {
         RummySimulation::RummySimulation(defaults::RummySimuParams params)
             : Simulation(params), _params(params)
         {
-            _init();
-        }
-
-        void RummySimulation::_init()
-        {
-            _iteration = 0;
             reinit();
         }
 
         void RummySimulation::reinit()
         {
+            _iteration = 0;
+            _is_kicking = false;
+
             _fish.clear();
             _fish.resize(static_cast<size_t>(_params.num_fish));
             for (size_t i = 0; i < _fish.size(); ++i) {
@@ -39,24 +36,29 @@ namespace simu {
                 }
             }
 
+            _is_kicking = false;
+
             // no fish kicking yet
             if ((_iteration + 1) * _sim_settings.timestep <= _t_next_kick) {
                 for (size_t i = 0; i < _fish.size(); ++i) {
-                    _fish[i]->glide(std::make_shared<RummySimulation>(*this));
+                    _fish[i]->burst_and_coast(std::make_shared<RummySimulation>(*this));
                 }
-
-                // update statistics
-                _update_stats(std::make_shared<RummySimulation>(*this));
-                _update_descriptors(std::make_shared<RummySimulation>(*this));
-
-                Simulation::spin_once();
             }
             // compute new kick
             else {
+                _is_kicking = true;
                 for (size_t i = 0; i < _fish.size(); ++i) {
                     _fish[i]->prepare_kick(std::make_shared<RummySimulation>(*this));
                 }
                 _fish[_next_kicker_idx]->kick(std::make_shared<RummySimulation>(*this));
+            }
+
+            // update statistics
+            _update_stats(std::make_shared<RummySimulation>(*this));
+            _update_descriptors(std::make_shared<RummySimulation>(*this));
+
+            if (!_is_kicking) {
+                Simulation::spin_once();
             }
         }
 
@@ -76,6 +78,11 @@ namespace simu {
         int RummySimulation::next_kicker_idx() const
         {
             return _next_kicker_idx;
+        }
+
+        bool RummySimulation::is_kicking() const
+        {
+            return _is_kicking;
         }
 
     } // namespace simulation
