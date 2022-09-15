@@ -87,6 +87,7 @@ namespace simu {
             _t0 = rsim->t_next_kick();
             _pose.x = _kick_pose.x;
             _pose.y = _kick_pose.y;
+            _pose.yaw = _kick_pose.yaw;
 
             auto state = compute_state(rsim->fish());
             auto neighs = sort_neighbours(std::get<0>(state), _id, Order::INCREASING); // by distance

@@ -24,7 +24,7 @@ namespace simu {
                 float gamma_rand = 0.3;
                 float gamma_wall = 0.23;
                 float gamma_sym = 0.;
-                float gamma_asym = 0.0;
+                float gamma_asym = 0.;
                 float wall_interaction_range = 6.;
 
                 float dw = 6.;
