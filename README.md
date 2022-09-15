@@ -29,4 +29,4 @@
    
 - Run the example
 
-   `./build/exp/rummy_nose/rummy_nose_sim`
+   `./build/exp/rummy_nose/rummy_sim`
