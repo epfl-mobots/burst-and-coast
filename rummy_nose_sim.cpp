@@ -17,6 +17,7 @@ int main()
 
     RummySimuParams params;
     params.sim_time = 500000;
+    params.timestep = 0.12;
     // params.timestep = 1 / 30.;
     // params.sim_time = 1500000;
     RummySimulation sim(params);

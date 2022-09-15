@@ -88,52 +88,52 @@ namespace simu {
             _pose.x = _kick_pose.x;
             _pose.y = _kick_pose.y;
 
-            float theta = std::atan2(_kick_pose.y, _kick_pose.x);
-            float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
-
             auto state = compute_state(rsim->fish());
             auto neighs = sort_neighbours(std::get<0>(state), _id, Order::INCREASING); // by distance
 
-            for (int j : neighs) {
-                auto neigh = rsim->fish()[j];
+            // float theta = std::atan2(_kick_pose.y, _kick_pose.x);
+            // float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
 
-                float dij = std::get<0>(state)[j];
-                float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
-                float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
-                float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
+            // for (int j : neighs) {
+            //     auto neigh = rsim->fish()[j];
 
-                if (
-                    neighs.size() == 1 && _params.iuturn
-                    && psi_ij < _params.psi_c
-                    && psi_ji < _params.psi_c
-                    && dij < _params.duturn) {
+            //     float dij = std::get<0>(state)[j];
+            //     float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
+            //     float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
+            //     float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
 
-                    ++_num_uturn;
-                    _pose.yaw = neigh->kick_pose().yaw;
-                }
+            //     if (
+            //         neighs.size() == 1 && _params.iuturn
+            //         && psi_ij < _params.psi_c
+            //         && psi_ji < _params.psi_c
+            //         && dij < _params.duturn) {
 
-                if (
-                    neighs.size() == 1
-                    && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
-                    && dij < _params.duturn
-                    && dphi_ij < _params.psi_c
-                    && rw < 8.) {
+            //         ++_num_uturn;
+            //         _pose.yaw = neigh->kick_pose().yaw;
+            //     }
 
-                    ++_num_jumps;
-                    float theta_w = angle_to_pipi(_pose.yaw - theta);
-                    if (theta_w > 0) {
-                        theta_w = M_PI_2 + M_PI * ran3();
-                    }
-                    else {
-                        theta_w = M_PI_2 - M_PI * ran3();
-                    }
+            //     if (
+            //         neighs.size() == 1
+            //         && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
+            //         && dij < _params.duturn
+            //         && dphi_ij < _params.psi_c
+            //         && rw < 8.) {
 
-                    _pose.yaw = theta + theta_w;
-                    neigh->t0() = rsim->t_next_kick();
-                    neigh->pose() = _pose;
-                    neigh->tau() = 0.;
-                }
-            }
+            //         ++_num_jumps;
+            //         float theta_w = angle_to_pipi(_pose.yaw - theta);
+            //         if (theta_w > 0) {
+            //             theta_w = M_PI_2 + M_PI * ran3();
+            //         }
+            //         else {
+            //             theta_w = M_PI_2 - M_PI * ran3();
+            //         }
+
+            //         _pose.yaw = theta + theta_w;
+            //         neigh->t0() = rsim->t_next_kick();
+            //         neigh->pose() = _pose;
+            //         neigh->tau() = 0.;
+            //     }
+            // } // for each neighbour
 
             float dphi_int, fw;
             std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
@@ -226,7 +226,7 @@ namespace simu {
             float fw;
 
             // wall interaction
-            float theta_w = angle_to_pipi(_pose.yaw - theta);
+            float theta_w = angle_to_pipi(_kick_pose.yaw - theta);
             fw = std::exp(-std::pow(rw / _params.dw, 2));
             float ow = std::sin(theta_w) * (1. + 0.7 * std::cos(2. * theta_w));
             dphiw = _params.gamma_wall * fw * ow;
@@ -236,13 +236,11 @@ namespace simu {
 
             dphiw += dphiwsym + dphiwasym;
 
+            // fish interaction
             for (int j : neighs) {
-                auto neigh = rsim->fish()[j];
-
                 float dij = std::get<0>(state)[j];
-                float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
-                float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
-                float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
+                float psi_ij = std::get<1>(state)[j];
+                float dphi_ij = std::get<3>(state)[j];
 
                 float fatt = (dij - 6.) / 3. / (1. + std::pow(dij / 20., 2));
                 // float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
@@ -258,7 +256,7 @@ namespace simu {
                 float dphiali = _params.gamma_alignment * fali * oali * eali;
 
                 dphi_fish += dphiatt + dphiali;
-            } // for each neighbour
+            }
             float dphi_int = dphiw + dphi_fish;
 
             return {dphi_int, fw};
