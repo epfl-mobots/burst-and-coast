@@ -17,6 +17,7 @@ namespace simu {
 
         namespace defaults {
             struct RummyIndividualParams {
+                bool use_closest_individual = false;
                 float radius = 25.;
 
                 // interactions
@@ -25,21 +26,15 @@ namespace simu {
                 float gamma_wall = 0.23;
                 float gamma_sym = 0.;
                 float gamma_asym = 0.;
-                float wall_interaction_range = 6.;
 
                 float dw = 6.;
-                float dc = 1.;
+                float dc = 0.7;
                 float alpha_w = 0.;
                 float gamma_attraction = 0.3;
                 float gamma_alignment = 0.3;
 
-                bool iuturn = true;
-                float duturn = 6.;
-                float pjump = 0.;
-                float psi_c = 0.25;
-
                 // kicks
-                float vmean = 43.;
+                float vmean = 40.;
                 float vmin = 1.;
                 float vmem = 0.9;
                 float vmem12 = 0.5;
@@ -70,7 +65,7 @@ namespace simu {
 
             virtual void burst_and_coast(const std::shared_ptr<Simulation> sim);
             virtual void prepare_kick(const std::shared_ptr<Simulation> sim);
-            virtual void kick(const std::shared_ptr<Simulation> sim);
+            virtual bool kick(const std::shared_ptr<Simulation> sim);
 
             virtual void stimulate(const std::shared_ptr<Simulation> sim) override;
             virtual void move(const std::shared_ptr<Simulation> sim) override;
@@ -86,7 +81,8 @@ namespace simu {
             Pose2d<float>& pose();
             Pose2d<float> traj_pose() const;
             float traj_speed() const;
-            defaults::RummyIndividualParams params() const;
+            const defaults::RummyIndividualParams& params() const;
+            defaults::RummyIndividualParams& params();
 
         protected:
             std::tuple<float, float> compute_interactions(const state_t& state, std::vector<int> neighs, const std::shared_ptr<Simulation> sim);
@@ -111,6 +107,7 @@ namespace simu {
             Pose2d<float> _kick_pose;
             float _speed;
             float _traj_speed;
+            std::vector<int> _most_inf_idcs;
         };
 
     } // namespace simulation

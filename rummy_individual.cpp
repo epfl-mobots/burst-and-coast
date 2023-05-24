@@ -76,14 +76,14 @@ namespace simu {
             _kick_pose.yaw = _pose.yaw;
         }
 
-        void RummyIndividual::kick(const std::shared_ptr<Simulation> sim)
+        bool RummyIndividual::kick(const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
             ++_num_kicks;
 
             float v0old = _speed;
-            float vold = _speed * std::exp(-_tau / _params.tau0);
+            // float vold = _speed * std::exp(-_tau / _params.tau0);
             _t0 = rsim->t_next_kick();
             _pose.x = _kick_pose.x;
             _pose.y = _kick_pose.y;
@@ -91,50 +91,6 @@ namespace simu {
 
             auto state = compute_state(rsim->fish());
             auto neighs = sort_neighbours(std::get<0>(state), _id, Order::INCREASING); // by distance
-
-            // float theta = std::atan2(_kick_pose.y, _kick_pose.x);
-            // float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
-
-            // for (int j : neighs) {
-            //     auto neigh = rsim->fish()[j];
-
-            //     float dij = std::get<0>(state)[j];
-            //     float psi_ij = abs(angle_to_pipi(std::get<1>(state)[j]));
-            //     float psi_ji = abs(angle_to_pipi(std::get<2>(state)[j]));
-            //     float dphi_ij = abs(angle_to_pipi(std::get<3>(state)[j]));
-
-            //     if (
-            //         neighs.size() == 1 && _params.iuturn
-            //         && psi_ij < _params.psi_c
-            //         && psi_ji < _params.psi_c
-            //         && dij < _params.duturn) {
-
-            //         ++_num_uturn;
-            //         _pose.yaw = neigh->kick_pose().yaw;
-            //     }
-
-            //     if (
-            //         neighs.size() == 1
-            //         && (psi_ij < _params.psi_c || psi_ji < _params.psi_c)
-            //         && dij < _params.duturn
-            //         && dphi_ij < _params.psi_c
-            //         && rw < 8.) {
-
-            //         ++_num_jumps;
-            //         float theta_w = angle_to_pipi(_pose.yaw - theta);
-            //         if (theta_w > 0) {
-            //             theta_w = M_PI_2 + M_PI * ran3();
-            //         }
-            //         else {
-            //             theta_w = M_PI_2 - M_PI * ran3();
-            //         }
-
-            //         _pose.yaw = theta + theta_w;
-            //         neigh->t0() = rsim->t_next_kick();
-            //         neigh->pose() = _pose;
-            //         neigh->tau() = 0.;
-            //     }
-            // } // for each neighbour
 
             float dphi_int, fw;
             std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
@@ -148,62 +104,61 @@ namespace simu {
             int iter = 0;
             float phi_new, r_new;
             do {
+                float theta = std::atan2(_kick_pose.y, _kick_pose.x);
+                float theta_w = angle_to_pipi(_kick_pose.yaw - theta);
+
                 do {
-                    auto most_inf_neigh = rsim->fish()[neighs[0]];
                     float prob = ran3();
                     if (prob < _params.vmem) {
-                        if (prob < _params.vmem * _params.vmem12) {
-                            _speed = most_inf_neigh->speed();
+                        if (prob < _params.vmem12) {
+                            // auto most_inf_neigh = rsim->fish()[neighs[0]];
+                            // _speed = most_inf_neigh->speed() * _params.coeff_peak_v;
+                            _speed = 0.;
+                            for (size_t idx : neighs) {
+                                _speed += rsim->fish()[idx]->speed();
+                            }
+                            _speed /= neighs.size();
                         }
                         else {
                             _speed = v0old;
                         }
                     }
                     else {
-                        // if (vold > _params.vmean) {
-                        //     _speed = vold;
-                        // }
-                        // else {
-                        //     _speed = vold - (_params.vmean - vold) * log(ran3() * ran3()) / 2.;
-                        // }
-                        // _speed = -_params.vmean * log(ran3());
                         _speed = _params.vmin + _params.vmean * (-log(ran3() * ran3() * ran3())) / 3.;
                     }
                 } while (_speed > _params.vcut); // speed
+                _speed = std::max(_speed, _params.vmin);
 
                 float dtau = _params.taumean - _params.taumin;
                 _tau = _params.taumin - dtau * 0.5 * log(ran3() * ran3());
 
                 // cognitive noise
                 float gauss = std::sqrt(-2. * log(ran3())) * cos(2 * M_PI * ran3());
+                // float gauss = tools::normal_random(0., 1.);
                 phi_new = _pose.yaw + dphi_int + _params.gamma_rand * gauss * (1. - _params.alpha_w * fw);
                 float dl = _speed * _params.tau0 * (1. - std::exp(-_tau / _params.tau0)) + _params.dc;
+                // float dl = _speed * _tau + _params.dc;
                 float x_new = _pose.x + dl * std::cos(phi_new);
                 float y_new = _pose.y + dl * std::sin(phi_new);
                 r_new = std::sqrt(x_new * x_new + y_new * y_new);
 
                 if (++iter > _params.itermax) {
                     iter = 0;
-                    // float dphiplus = 1.5 * (-log(ran3()));
-                    float dphiplus = 0.1 * ran3();
-                    float prob = ran3();
-                    if (prob < 0.5) {
-                        _pose.yaw = angle_to_pipi(std::atan2(_kick_pose.y, _kick_pose.x) + M_PI_2 + dphiplus);
+                    float dphiplus = 0.1 * (-log(ran3()));
+                    if (theta_w > 0) {
+                        _kick_pose.yaw = (theta + M_PI_2 + dphiplus);
                     }
                     else {
-                        _pose.yaw = angle_to_pipi(std::atan2(_kick_pose.y, _kick_pose.x) - M_PI_2 - dphiplus);
+                        _kick_pose.yaw = (theta - M_PI_2 - dphiplus);
                     }
                     std::tie(dphi_int, fw) = compute_interactions(state, neighs, sim);
                 }
 
             } while (r_new > _params.radius); // radius
 
-            auto j = rsim->fish()[neighs[0]]->id();
-            if (std::cos(std::get<1>(state)[j]) > 0.9999 && std::get<0>(state)[j] < 3.) {
-                _speed /= 2.;
-            }
-
             _pose.yaw = angle_to_pipi(phi_new);
+
+            return true;
         }
 
         void RummyIndividual::stimulate(const std::shared_ptr<Simulation> sim) {}
@@ -222,7 +177,6 @@ namespace simu {
             float theta = std::atan2(_kick_pose.y, _kick_pose.x);
             float rw = rsim->params().radius - std::sqrt(_kick_pose.x * _kick_pose.x + _kick_pose.y * _kick_pose.y);
 
-            float dphi_fish = 0.;
             float dphiw = 0.;
             float fw;
 
@@ -238,15 +192,16 @@ namespace simu {
             dphiw += dphiwsym + dphiwasym;
 
             // fish interaction
+            std::vector<float> dphi_fish;
             for (int j : neighs) {
                 float dij = std::get<0>(state)[j];
                 float psi_ij = std::get<1>(state)[j];
                 float dphi_ij = std::get<3>(state)[j];
 
-                float fatt = (dij - 6.) / 3. / (1. + std::pow(dij / 20., 2));
-                // float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
+                float fatt = (dij - 3.) / 3. / (1. + std::pow(dij / 20., 2));
+                float oatt = std::sin(psi_ij) * (1. - 0.33 * std::cos(psi_ij));
                 // float eatt = 1. - 0.48 * std::cos(dphi_ij) - 0.31 * std::cos(2. * dphi_ij);
-                float oatt = std::sin(psi_ij) * (1. + std::cos(psi_ij));
+                // float oatt = std::sin(psi_ij) * (1. + std::cos(psi_ij));
                 float eatt = 1.;
                 float dphiatt = _params.gamma_attraction * fatt * oatt * eatt;
 
@@ -256,9 +211,24 @@ namespace simu {
                 float eali = 1. + 0.6 * std::cos(psi_ij) - 0.32 * std::cos(2. * psi_ij);
                 float dphiali = _params.gamma_alignment * fali * oali * eali;
 
-                dphi_fish += dphiatt + dphiali;
+                dphi_fish.push_back(dphiatt + dphiali);
             }
-            float dphi_int = dphiw + dphi_fish;
+
+            _most_inf_idcs.clear();
+            _most_inf_idcs = neighs;
+            if (!_params.use_closest_individual) {
+                std::sort(_most_inf_idcs.begin(), _most_inf_idcs.end(),
+                    [&](size_t lidx, size_t ridx) -> bool {
+                        return std::abs(dphi_fish[lidx]) < std::abs(dphi_fish[ridx]);
+                    });
+                std::sort(dphi_fish.begin(), dphi_fish.end(), [](const float& lv, const float& rv) {
+                    return std::abs(lv) > std::abs(rv);
+                });
+            }
+
+            size_t offset = std::min(dphi_fish.size(), static_cast<size_t>(_params.perceived_agents));
+            float dphi_f = std::accumulate(dphi_fish.begin(), dphi_fish.begin() + offset, 0.);
+            float dphi_int = dphiw + dphi_f;
 
             return {dphi_int, fw};
         }
@@ -296,7 +266,7 @@ namespace simu {
         {
             std::vector<int> neigh_idcs;
             for (int i = 0; i < values.rows(); ++i) {
-                if (i == _id)
+                if (i == kicker_idx)
                     continue;
                 neigh_idcs.push_back(i);
             }
@@ -375,7 +345,12 @@ namespace simu {
             return _traj_speed;
         }
 
-        defaults::RummyIndividualParams RummyIndividual::params() const
+        const defaults::RummyIndividualParams& RummyIndividual::params() const
+        {
+            return _params;
+        }
+
+        defaults::RummyIndividualParams& RummyIndividual::params()
         {
             return _params;
         }
