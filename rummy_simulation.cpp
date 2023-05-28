@@ -58,9 +58,9 @@ namespace simu {
             _update_descriptors(std::make_shared<RummySimulation>(*this));
 
             if (!_is_kicking) {
-                if ((_iteration % 10000) == 0) {
-                    std::cout << "Iteration: " << _iteration << std::endl;
-                }
+                // if ((_iteration % 10000) == 0) {
+                //     std::cout << "Iteration: " << _iteration << std::endl;
+                // }
 
                 Simulation::spin_once();
             }
