@@ -133,8 +133,8 @@ namespace simu {
                 _tau = _params.taumin - dtau * 0.5 * log(ran3() * ran3());
 
                 // cognitive noise
-                float gauss = std::sqrt(-2. * log(ran3())) * cos(2 * M_PI * ran3());
-                // float gauss = tools::normal_random(0., 1.);
+                // float gauss = std::sqrt(-2. * log(ran3())) * cos(2 * M_PI * ran3());
+                float gauss = tools::normal_random(0., 1.);
                 phi_new = _pose.yaw + dphi_int + _params.gamma_rand * gauss * (1. - _params.alpha_w * fw);
                 float dl = _speed * _params.tau0 * (1. - std::exp(-_tau / _params.tau0)) + _params.dc;
                 // float dl = _speed * _tau + _params.dc;

@@ -3,6 +3,11 @@
 #include <tools/random/random_generator.hpp>
 #include <numeric>
 
+#ifdef USE_TBB
+#include <tbb/tbb.h>
+#include <oneapi/tbb/parallel_for.h>
+#endif
+
 namespace simu {
     namespace simulation {
         RummySimulation::RummySimulation(defaults::RummySimuParams params)
