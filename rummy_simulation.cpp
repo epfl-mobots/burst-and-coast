@@ -41,7 +41,7 @@ namespace simu {
             // no fish kicking yet
             if ((_iteration + 1) * _sim_settings.timestep <= _t_next_kick) {
                 for (size_t i = 0; i < _fish.size(); ++i) {
-                    _fish[i]->burst_and_coast(std::make_shared<RummySimulation>(*this));
+                    _fish[i]->coast(std::make_shared<RummySimulation>(*this));
                 }
             }
             // compute new kick

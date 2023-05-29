@@ -50,7 +50,7 @@ namespace simu {
 
         RummyIndividual::~RummyIndividual() {}
 
-        void RummyIndividual::burst_and_coast(const std::shared_ptr<Simulation> sim)
+        void RummyIndividual::coast(const std::shared_ptr<Simulation> sim)
         {
             auto rsim = std::static_pointer_cast<RummySimulation>(sim);
 
