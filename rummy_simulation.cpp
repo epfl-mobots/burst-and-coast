@@ -21,8 +21,8 @@ namespace simu {
             _iteration = 0;
             _is_kicking = false;
 
-            _fish.clear();
             if (_fish.size() != _params.num_fish) {
+                _fish.clear();
                 _fish.resize(static_cast<size_t>(_params.num_fish));
                 for (size_t i = 0; i < _fish.size(); ++i) {
                     _fish[i] = std::make_shared<RummyIndividual>(i);
