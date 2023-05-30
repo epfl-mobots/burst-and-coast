@@ -27,7 +27,8 @@ namespace simu {
             int next_kicker_idx() const;
             float t_next_kick() const;
             bool is_kicking() const;
-            defaults::RummySimuParams params() const;
+            const defaults::RummySimuParams params() const;
+            defaults::RummySimuParams& params();
 
             void reinit();
 

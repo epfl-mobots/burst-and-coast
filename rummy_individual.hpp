@@ -62,6 +62,7 @@ namespace simu {
         public:
             RummyIndividual(int id, defaults::RummyIndividualParams params = defaults::RummyIndividualParams());
             virtual ~RummyIndividual();
+            void reinit();
 
             virtual void coast(const std::shared_ptr<Simulation> sim);
             virtual void prepare_kick(const std::shared_ptr<Simulation> sim);

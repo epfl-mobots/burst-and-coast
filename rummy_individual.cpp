@@ -16,7 +16,11 @@ namespace simu {
         RummyIndividual::RummyIndividual(int id, defaults::RummyIndividualParams params) : _params(params)
         {
             _id = id;
+            reinit();
+        }
 
+        void RummyIndividual::reinit()
+        {
             _t0 = 0;
             _speed = _params.vmean;
             float dtau = _params.taumean - _params.taumin;

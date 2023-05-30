@@ -22,9 +22,16 @@ namespace simu {
             _is_kicking = false;
 
             _fish.clear();
-            _fish.resize(static_cast<size_t>(_params.num_fish));
-            for (size_t i = 0; i < _fish.size(); ++i) {
-                _fish[i] = std::make_shared<RummyIndividual>(i);
+            if (_fish.size() != _params.num_fish) {
+                _fish.resize(static_cast<size_t>(_params.num_fish));
+                for (size_t i = 0; i < _fish.size(); ++i) {
+                    _fish[i] = std::make_shared<RummyIndividual>(i);
+                }
+            }
+            else {
+                for (size_t i = 0; i < _fish.size(); ++i) {
+                    _fish[i]->reinit();
+                }
             }
 
             // log the initial position
@@ -79,7 +86,12 @@ namespace simu {
             return _t_next_kick;
         }
 
-        defaults::RummySimuParams RummySimulation::params() const
+        const defaults::RummySimuParams RummySimulation::params() const
+        {
+            return _params;
+        }
+
+        defaults::RummySimuParams& RummySimulation::params()
         {
             return _params;
         }
