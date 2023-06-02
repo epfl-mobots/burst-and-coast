@@ -71,17 +71,17 @@ namespace simu {
             virtual void stimulate(const std::shared_ptr<Simulation> sim) override;
             virtual void move(const std::shared_ptr<Simulation> sim) override;
 
-            float kick_duration() const;
-            float t0() const;
-            float& t0();
-            float tau() const;
-            float& tau();
-            Pose2d<float> kick_pose() const;
-            float speed() const;
-            Pose2d<float> pose() const;
-            Pose2d<float>& pose();
-            Pose2d<float> traj_pose() const;
-            float traj_speed() const;
+            virtual float kick_duration() const;
+            virtual float t0() const;
+            virtual float& t0();
+            virtual float tau() const;
+            virtual float& tau();
+            virtual Pose2d<float> kick_pose() const;
+            virtual float speed() const;
+            virtual Pose2d<float> pose() const;
+            virtual Pose2d<float>& pose();
+            virtual Pose2d<float> traj_pose() const;
+            virtual float traj_speed() const;
             const defaults::RummyIndividualParams& params() const;
             defaults::RummyIndividualParams& params();
 

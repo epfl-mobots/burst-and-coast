@@ -41,6 +41,7 @@ namespace simu {
         void RummySimulation::spin_once()
         {
             _t_next_kick = std::numeric_limits<float>::max();
+
             for (size_t i = 0; i < _fish.size(); ++i) {
                 if ((_fish[i]->t0() + _fish[i]->kick_duration()) < _t_next_kick) {
                     _t_next_kick = _fish[i]->t0() + _fish[i]->kick_duration();
@@ -58,10 +59,12 @@ namespace simu {
             }
             // compute new kick
             else {
+
                 _is_kicking = true;
                 for (size_t i = 0; i < _fish.size(); ++i) {
                     _fish[i]->prepare_kick(std::make_shared<RummySimulation>(*this));
                 }
+
                 _fish[_next_kicker_idx]->kick(std::make_shared<RummySimulation>(*this));
             }
 
