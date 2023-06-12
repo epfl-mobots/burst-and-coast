@@ -17,7 +17,8 @@ def build(bld):
         srcs += [n]
 
     bld.program(features='cxx',
-                source=['../../src/stat/stat_base.cpp',
+                source=['../../src/tools/filesystem.cpp',
+                        '../../src/stat/stat_base.cpp',
                         '../../src/simulation/simulation.cpp'] + srcs,
                 includes='. ../../src/',
                 uselib='BOOST BOOST_SYSTEM BOOST_FILESYSTEM BOOST_REGEX EIGEN',

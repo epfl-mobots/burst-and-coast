@@ -20,6 +20,7 @@ int main()
 {
     using namespace simu;
     using namespace simulation;
+    using namespace stat;
 
     // init simu
     RummySimuParams params;
@@ -117,11 +118,11 @@ int main()
     }
 
     // add stats
-    sim.add_stat(std::make_shared<stat::TrajectoryStat>())
-        .add_stat(std::make_shared<stat::CleanTrajectoryStat>())
-        .add_stat(std::make_shared<stat::KickStat>())
-        .add_stat(std::make_shared<stat::SpeedStat>())
-        .add_stat(std::make_shared<stat::PoseStat>());
+    sim.add_stat(std::make_shared<TrajectoryStat>())
+        .add_stat(std::make_shared<CleanTrajectoryStat>())
+        .add_stat(std::make_shared<KickStat>())
+        .add_stat(std::make_shared<SpeedStat>())
+        .add_stat(std::make_shared<PoseStat>());
 
     sim.spin();
 
